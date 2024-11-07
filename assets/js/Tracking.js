@@ -59,7 +59,7 @@ document.getElementById('loadSearchForm').addEventListener('submit', function (e
             loadInfoDiv.innerHTML = `
                  <div class="d-flex justify-content-between">
                     <h2 class="text-secondary">Load #: ${loadData.LoadNumber}</h2>
-                    <h3 class="text-secondary">Carrier: Khalsa Logistics LLC</h3>
+                    <h3 class="text-secondary">Carrier: Akal Freight LLC</h3>
                 </div>
                 <hr>
                 <p class="text-center">Below Load information is accurate and subject to be changed periodically. Please refresh to get the updated information...&nbsp;</p>
@@ -99,8 +99,8 @@ document.getElementById('loadSearchForm').addEventListener('submit', function (e
                         </div>
                         <div class="pt-3 text-end border-bottom border-info">
                             <h4 class="fw-bold text-success">Dispatcher Info:</h4>
-                            <h5>Khalsalogisticsllc@gmail.com</h5>
-                            <h5>800-811-7308</h5>
+                            <h5>akalfreight@gmail.com</h5>
+                            <h5>833-281-3151</h5>
                         </div>
                     </div>
                 </div>
