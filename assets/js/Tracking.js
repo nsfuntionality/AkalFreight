@@ -97,7 +97,7 @@ function LegItem(leg, isPickup, stopNumber, etaHtml) {
     const kind = isPickup ? 'pickup' : 'dropoff';
     const label = (isPickup ? 'Pick Up' : 'Drop Off') + (stopNumber ? ' ' + stopNumber : '');
     const labelColor = isPickup ? 'text-success' : 'text-warning';
-    const done = getMilitaryTime(leg.CheckOut) != '0000';
+    const done = wallMilitary(leg.CheckOut) != '0000';
     return `
         <div class="track-leg track-leg-${kind}${done ? ' track-leg-done' : ''}">
             <div class="d-flex justify-content-between align-items-start gap-2">
@@ -111,7 +111,7 @@ function LegItem(leg, isPickup, stopNumber, etaHtml) {
                 </div>
             </div>
             <div class="track-times">
-                <span>Appt <strong>${formatDate(leg.LoadStartTime)}</strong></span>
+                <span>Appt <strong>${formatWallDate(leg.LoadStartTime)}</strong></span>
                 <span>In <strong>${CheckTime(leg.CheckIn)}</strong></span>
                 <span>Out <strong>${CheckTime(leg.CheckOut)}</strong></span>
             </div>
@@ -122,13 +122,13 @@ function LegItem(leg, isPickup, stopNumber, etaHtml) {
 
 // "—" instead of the confusing 0000 sentinel; otherwise just the time of day.
 function CheckTime(dateTimeString) {
-    return getMilitaryTime(dateTimeString) == '0000' ? '&mdash;' : formatTime(dateTimeString);
+    return wallMilitary(dateTimeString) == '0000' ? '&mdash;' : formatWallTime(dateTimeString);
 }
 
 // Flag a leg where the driver sat for over an hour. An early arrival doesn't
 // start the clock until the appointment time; a late one counts from check-in.
 function HeldUpBadge(leg) {
-    if (getMilitaryTime(leg.CheckIn) == '0000' || getMilitaryTime(leg.CheckOut) == '0000') {
+    if (wallMilitary(leg.CheckIn) == '0000' || wallMilitary(leg.CheckOut) == '0000') {
         return '';
     }
     var start = new Date(leg.CheckIn);
@@ -189,16 +189,16 @@ function AdjacentLoadsHtml(adjacentLoads, currentPickupTime) {
         var dateLine;
         if (title === 'Previous Load') {
             if (l.StatusName === 'Delivered') {
-                dateLine = 'Delivered ' + formatDate(l.endTime || l.startTime);
+                dateLine = 'Delivered ' + formatWallDate(l.endTime || l.startTime);
             } else if (currentPickupTime) {
                 // Round-trip assumption: the previous load delivers right when
                 // the current load gets picked up.
-                dateLine = 'Delivery ~' + formatDate(currentPickupTime);
+                dateLine = 'Delivery ~' + formatWallDate(currentPickupTime);
             } else {
-                dateLine = 'Pickup ' + formatDate(l.startTime);
+                dateLine = 'Pickup ' + formatWallDate(l.startTime);
             }
         } else {
-            dateLine = 'Pickup ' + formatDate(l.startTime);
+            dateLine = 'Pickup ' + formatWallDate(l.startTime);
         }
         cards += `
             <div class="col-md-6">
@@ -251,16 +251,49 @@ function MapHtml(data, loadData) {
     `;
 }
 
+
+// Leg timestamps now arrive stamped with the STOP's UTC offset (e.g. -05:00).
+// For display we want the wall time at the stop, not the viewer's local time,
+// so these read the digits straight from the string. Date math (Held up) uses
+// real Date parsing and is offset-aware.
+function wallParts(dateTimeString) {
+    var m = String(dateTimeString || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return { y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5] };
+}
+
+function wallMilitary(dateTimeString) {
+    var p = wallParts(dateTimeString);
+    return p ? ('0' + p.h).slice(-2) + ('0' + p.mi).slice(-2) : '0000';
+}
+
+function wallClock12(h, mi) {
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; h = h ? h : 12;
+    return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2) + ' ' + ampm;
+}
+
+function formatWallDate(dateTimeString) {
+    var p = wallParts(dateTimeString);
+    if (!p) return '';
+    return ('0' + p.mo).slice(-2) + '/' + ('0' + p.d).slice(-2) + '/' + (p.y % 100) + ' ' + wallClock12(p.h, p.mi);
+}
+
+function formatWallTime(dateTimeString) {
+    var p = wallParts(dateTimeString);
+    return p ? wallClock12(p.h, p.mi) : '';
+}
+
 function LegStatus(leg, IsPickup){
     var status = '';
 
-    if(getMilitaryTime(leg.CheckIn) != "0000" && getMilitaryTime(leg.CheckOut) != "0000" && leg.OnHisWay) {
+    if(wallMilitary(leg.CheckIn) != "0000" && wallMilitary(leg.CheckOut) != "0000" && leg.OnHisWay) {
         status = IsPickup ? 'Picked' : 'Delivered';
     }
-    else if(getMilitaryTime(leg.CheckIn) != "0000" && getMilitaryTime(leg.CheckOut) == "0000") {
+    else if(wallMilitary(leg.CheckIn) != "0000" && wallMilitary(leg.CheckOut) == "0000") {
         status = 'Checked IN';
     }
-    else if(getMilitaryTime(leg.CheckIn) == "0000" && getMilitaryTime(leg.CheckOut) == "0000" && leg.OnHisWay) {
+    else if(wallMilitary(leg.CheckIn) == "0000" && wallMilitary(leg.CheckOut) == "0000" && leg.OnHisWay) {
         status = 'On His Way';
     }
     return status;
@@ -292,36 +325,6 @@ function formatDate(dateTimeString) {
     var formattedDateTime = month + '/' + day + '/' + year + ' ' + hours + ':' + minutes + ' ' + ampm;
 
     return formattedDateTime;
-}
-
-function formatTime(dateTimeString) {
-    var date = new Date(dateTimeString);
-    var hours = date.getHours();
-    var minutes = date.getMinutes();
-    var ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    hours = hours < 10 ? '0' + hours : hours;
-    minutes = minutes < 10 ? '0' + minutes : minutes;
-    return hours + ':' + minutes + ' ' + ampm;
-}
-
-function getMilitaryTime(dateTimeString) {
-    // Create a new Date object from the given string
-    var date = new Date(dateTimeString);
-
-    // Get the components of the date
-    var hours = date.getHours();
-    var minutes = date.getMinutes();
-
-    // Pad single digit values with leading zero
-    hours = hours < 10 ? '0' + hours : hours;
-    minutes = minutes < 10 ? '0' + minutes : minutes;
-
-    // Construct the military time string
-    var militaryTime = hours + '' + minutes;
-
-    return militaryTime;
 }
 
 function CreateDriverHtml(drivers, truck, trailer){
